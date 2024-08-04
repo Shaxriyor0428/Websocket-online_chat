@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Node JS Chat</title>
+    <style>
+      body {
+        background-color: rgb(0, 0, 0);
+        color: greenyellow;
+        font-family: "Consolas", sans-serif;
+      }
+      header {
+        text-align: center;
+      }
+      main {
+        margin-left: 1em;
+      }
+      #messages {
+        list-style: none;
+        display: none;
+        border: 1px solid yellow;
+        width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      #messages li.self {
+        color: darkorange;
+        text-align: right;
+      }
+      #messages li.chat {
+        color: darkorange;
+        text-align: center;
+      }
+      #messages li.friend {
+        color: darkturquoise;
+        text-align: left;
+      }
+      #form {
+        width: 600px;
+        margin: 0 auto;
+        display: none;
+      }
+      input,
+      label {
+        display: block;
+      }
+      input {
+        outline: none;
+        background-color: black;
+        color: greenyellow;
+        padding: 10px;
+        font-size: 1em;
+        font-family: "Consolas", monospace;
+        display: block;
+        flex: 1;
+      }
+      label {
+        padding: 1em 0.5em;
+        font-size: 1.5em;
+        display: block;
+      }
+      .connect {
+        width: 300px;
+        margin: 0 auto;
+        padding: 50px;
+        display: block;
+        border: 1px solid yellowgreen;
+        align-items: center;
+      }
+      #nick {
+        outline: none;
+        margin: 0 auto;
+        background-color: black;
+        color: greenyellow;
+        display: block;
+        font-size: 1em;
+        padding: 10px;
+        font-family: "Consolas", monospace;
+      }
+      button {
+        margin: 20px auto;
+        display: block;
+        background-color: black;
+        color: greenyellow;
+        padding: 10px;
+        font-size: 1em;
+        font-family: "Consolas", monospace;
+      }
+  
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Node JS Chat</h1>
+      <span id="status">OFFLINE</span>
+    </header>
+    <div class="connect" id="connectForm">
+      <input
+        type="text"
+        id="nick"
+        placeholder="Nick name..."
+        required
+        autofocus
+        autocomplete="off"
+      />
+      <button id="connectButton" onclick="connectWebsocket(event)">
+        Connect to WebSocket
+      </button>
+    </div>
+    <main>
+      <ul id="messages"></ul>
+      <br>
+      <br>
+      <form id="form">
+        <label for="input">&gt;</label>
+        <input type="text" id="input" autofocus required autocomplete="off" />
+      </form>
+    </main>
+    <script>
+      const status = document.getElementById("status");
+      const messages = document.getElementById("messages");
+      const form = document.getElementById("form");
+      const input = document.getElementById("input");
+      const connectButton = document.getElementById("connectButton");
+      const nick = document.getElementById("nick");
+      const connectForm = document.getElementById("connectForm");
+
+      let ws;
+  
+
+      function setStatus(value) {
+        status.textContent = value;
+      }
+
+      function printMessage(data) {
+        const li = document.createElement("li");
+        if (data.nick === nick.value) {
+          li.innerHTML = data.message;
+          console.log(li.textContent);
+          li.classList.add("self");
+        } else if (data.nick === "CHAT") {
+          li.innerHTML = "CHAT: " + data.message;
+          li.classList.add("chat");
+        } else {
+          li.innerHTML = data.nick + ": " + data.message;
+          li.classList.add("friend");
+        }
+        messages.appendChild(li);
+      }
+
+      function connectWebsocket(event) {
+        event.preventDefault();
+        ws = new WebSocket("ws://localhost:3000");
+
+        ws.onopen = () => {
+          connectForm.style.display = "none";
+          form.style.display = "flex";
+          messages.style.display = "block";
+          setStatus("ONLINE");
+          ws.send(
+            JSON.stringify({
+              type: "nick",
+              value: nick.value.toString(),
+            })
+          );
+        };
+
+        ws.onclose = () => {
+          connectForm.style.display = "block";
+          form.style.display = "none";
+          messages.style.display = "none";
+          setStatus("CHATDAN UZILDI");
+        };
+
+        ws.onmessage = (response) => {
+          const data = JSON.parse(response.data);
+
+          switch (data.type) {
+            case "welcome":
+              printMessage({
+                nick: "CHAT",
+                message: data.value,
+              });
+              break;
+            case "user_id":
+              printMessage({
+                nick: "CHAT",
+                message: `Sizning raqamingiz ID - ${data.userId}`,
+              });
+              break;
+            case "nick_busy":
+              nick.value = "";
+              nick.placeholder = "Bu Nick band";
+              break;
+            case "user_connected":
+              printMessage({
+                nick: "CHAT",
+                message: `User ${data.nick} chatga qo'shildi`,
+              });
+              break;
+            case "user_disconnected":
+              printMessage({
+                nick: "CHAT",
+                message: `User ${data.nick} has disconnected`,
+              });
+              break;
+            case "message":
+              printMessage({
+                nick: data.nick,
+                message: data.message,
+              });
+              break;
+            default:
+              break;
+          }
+        };
+      }
+
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        ws.send(
+          JSON.stringify({
+            type: "message",
+            value: input.value,
+            nick: nick.value,
+          })
+        );
+        input.value = "";
+      });
+    </script>
+  </body>
+</html>
